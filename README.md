@@ -1,4 +1,4 @@
-ns2v1
-=====
+ns2gbc
+======
 
-Versão funcional c/ erros no cbnodes e sem uid_()
+Versão funcional s/ multiplos recursos mas com cancelamento baseano na informaçao adquirida pelos nos.
