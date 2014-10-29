@@ -14,20 +14,16 @@ struct hdr_gbc {
 
 	// Our stuff
 
-	nsaddr_t  source_;      // Originator of the packet (initiator)
-	int       query_id_;    // Unique ID (at the originator)
-	int       size_;        // "Real" size of the packet (from a simulation point of view)
-	double    timesent_;    // time at the sender of the packet
-	int       nHops_;       // number of hops already traveled
-
-	//BCIR
-	int proto_;				// 1 - FLOOD , 2 - BERS , 3 - BCIR
-	int query_elem_;		//Resource query
-	int noderesource_;  	//Node where resource was found
-	int msgtype_; 			// 1 - Searching , 2 - Answer , 3 - Cancel
-	double initial_delay_;
-	double jitter_;
-	int M_;
+	nsaddr_t	source_;      // Originator of the packet (initiator)
+	int			query_id_;    // Unique ID (at the originator)
+	int			size_;        // "Real" size of the packet (from a simulation point of view)
+	double		timesent_;    // time at the sender of the packet
+	int			nHops_;       // number of hops already traveled
+	int			proto_;				// 1 - FLOOD , 2 - BERS , 3 - BCIR
+	int			query_elem_;		//Resource query
+	int			noderesource_;  	//Node where resource was found
+	int			msgtype_; 			// 1 - Searching , 2 - Answer , 3 - Cancel
+	int			M_;
 };
 
 // Alterar em:

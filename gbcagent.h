@@ -46,6 +46,8 @@ private:
 		int  query_id;
 		bool relay_search;
 		bool relay_cancel;
+		bool pre_relay_search;
+		bool pre_relay_cancel;
 		bool relay_answer;
 	};
 	
@@ -55,22 +57,24 @@ private:
 	// BCIR - LOG
 	bool show;
 	// BCIR
-	double fix_delay_min;
-	double fix_delay_max;
+	//double fix_delay_min;
+	//double fix_delay_max;
 	
 	int resource_;
+	double delay_;
+	double jitter_;
 	bool hasresource(int resource);
-	double calcDelayHop(int proto, double hop, double delay, double jitter, int M);
+	double calcDelayHop(int proto, double hop, int M);
 
-	void searchPacket(int query_id, int size, int proto, double delay, double jitter, int M, int resource);
-//	void setResource(int resource);
-	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource, double delay, double jitter);
+	void searchPacket(int query_id, int size, int proto, int M, int resource);
+	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource);
 	void answerPacket(int size, int proto, double delay, double jitter, int initiator, int resource);
 
 	void showheader(char opt, Packet* pkt);
 
 	void recvgbc(Packet* pkt);
-
+	
+	int getpos(int query_id);
 	bool prevSearch(int query_id);
 	bool prevCancel(int query_id);
 	void statusNode();

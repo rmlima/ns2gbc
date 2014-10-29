@@ -18,52 +18,42 @@ GbcAgent::GbcAgent() : Agent(PT_GBC),
 	show=TRUE;
 	cqueries_=0;
 	resource_=0;
+	delay_=0;
+	jitter_=0;
 }
 
 int GbcAgent::command(int argc,const char*const* argv) {
 
 	char dummy;
 	//Default parameters
-	int size=1000, M=1;
-	double delay=1, jitter=.1;
-	int query_elem=0;
-	int query_id=1;
+	int size=1000, M=1, query_id, query_elem;
 
 
 	//SEARCH command : Used in traffile
-	if(!strcmp(argv[1],"search") && argc==8) {
+	if(!strcmp(argv[1],"search") && argc==6) {
 		
 		if(sscanf(argv[2],"%d%c",&query_id,&dummy)!=1) {
 			fprintf(stderr,"Wrong number of arguments in traffile. "
 			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
 			return (TCL_ERROR);
 		}
-		if(sscanf(argv[3],"%d%c",&size,&dummy)!=1) {
+		if(sscanf(argv[3],"%d%c",&query_elem,&dummy)!=1) {
 			fprintf(stderr,"Wrong number of arguments in traffile. "
 			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
 			return (TCL_ERROR);
 		}
-		if(sscanf(argv[4],"%lf%c",&delay,&dummy)!=1) {
+		if(sscanf(argv[4],"%d%c",&size,&dummy)!=1) {
 			fprintf(stderr,"Wrong number of arguments in traffile. "
 			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
 			return (TCL_ERROR);
 		}
-		if(sscanf(argv[5],"%lf%c",&jitter,&dummy)!=1) {
+		if(sscanf(argv[5],"%d%c",&M,&dummy)!=1) {
 			fprintf(stderr,"Wrong number of arguments in traffile. "
 			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
 			return (TCL_ERROR);
 		}
-		if(sscanf(argv[6],"%d%c",&M,&dummy)!=1) {
-			fprintf(stderr,"Wrong number of arguments in traffile. "
-			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
-			return (TCL_ERROR);
-		}
-		if(sscanf(argv[7],"%d%c",&query_elem,&dummy)!=1) {
-			fprintf(stderr,"Wrong number of arguments in traffile. "
-			"Format: <query_id> <size> <delay> <jitter> <M> <query_elem>\n");
-			return (TCL_ERROR);
-		}
-	searchPacket(query_id,size,6,delay,jitter,M,query_elem);
+
+	searchPacket(query_id,size,6,M,query_elem);
 	return (TCL_OK);
 	}
 
@@ -76,6 +66,28 @@ int GbcAgent::command(int argc,const char*const* argv) {
 		}
 	return (TCL_OK);
 	}
+	
+	// Set delay in nodes/Agents
+	if(!strcmp(argv[1],"delay") && argc==3) {
+		if(sscanf(argv[2],"%lf%c",&delay_,&dummy)!=1) {
+			fprintf(stderr,"Wrong number of arguments in traffile."
+			"Format: gbc_(<node>) delay <delay>\n");
+			return (TCL_ERROR);
+		}
+	return (TCL_OK);
+	}
+
+	// Set jitter in nodes/Agents
+	if(!strcmp(argv[1],"jitter") && argc==3) {
+		if(sscanf(argv[2],"%lf%c",&jitter_,&dummy)!=1) {
+			fprintf(stderr,"Wrong number of arguments in traffile."
+			"Format: gbc_(<node>) resource <resource_id>\n");
+			return (TCL_ERROR);
+		}
+	return (TCL_OK);
+	}
+		
+	
 	
 	// Results LOG
 	if(!strcmp(argv[1],"log-target") && argc==3) {
@@ -90,9 +102,8 @@ int GbcAgent::command(int argc,const char*const* argv) {
 	return Agent::command(argc,argv);
 }
 
-
 void GbcAgent::searchPacket(int query_id, int size, int proto,
-				double delay, double jitter, int M, int query_elem) {
+				 int M, int query_elem) {
 					
 	Packet* pkt=createGbcPkt(size);
 	hdr_gbc* gbchdr=hdr_gbc::access(pkt);
@@ -101,8 +112,6 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
     gbchdr->query_id_=query_id; // Identify the query
     gbchdr->size_=size;         // "Real" size of the packet (from a simulation point of view)
     gbchdr->proto_=proto;
-	gbchdr->initial_delay_=delay;
-	gbchdr->jitter_=jitter;
 	gbchdr->M_=M; 				//Parametro não usado mas sugerido pelo Carlos
 	gbchdr->query_elem_=query_elem;
 	
@@ -111,38 +120,41 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 	gbchdr->nHops_=1;           // First Hop
 	gbchdr->msgtype_=1;			// Searching Message
 	
-
 	printf("searchPacket: Start - Qid:%d Node:%d Qele:%d "
 				"Proto:%d Size:%d Initial_delay:%lf M:%d"
-				" \n",query_id,gbchdr->source_,query_elem,proto,size,delay,M);
-
-	
-	//Node data memory
-	sentMsgs_++;
-	queries_[cqueries_].query_initiator=true;
-	queries_[cqueries_].cancel_initiator=false;
-	queries_[cqueries_].query_id=query_id;
-	queries_[cqueries_].relay_search=true;
-	queries_[cqueries_].relay_cancel=false;
-	queries_[cqueries_].relay_answer=false;
-	cqueries_++;
-	
-	send(pkt,0);
-	
-	//Write to LOG file
-	if(logtarget) {
-		sprintf(logtarget->pt_->buffer(),"e -t %11.9f "
-				"-Qid %d -Qel %d -Node %d -Proto %d -Nl AGT GBC Search START"
-				,NOW,query_id,query_elem,gbchdr->source_,proto);
-		logtarget->pt_->dump();
-		}
+				" \n",query_id,gbchdr->source_,query_elem,proto,size,delay_,M);
+			
+	if (getpos(gbchdr->query_id_)==-1) {
+		queries_[cqueries_].query_initiator=true;
+		queries_[cqueries_].relay_search=true;
+		queries_[cqueries_].cancel_initiator=false;
+		queries_[cqueries_].query_id=query_id;
+		queries_[cqueries_].relay_cancel=false;
+		queries_[cqueries_].relay_answer=false;
+		cqueries_++;
+		send(pkt,0);
 		
-    //Send header to  terminal
-	if (show) {showheader('i',pkt);};
+		statusNode();
+		//Node data memory
+		sentMsgs_++;
+		//Write to LOG file
+		if(logtarget) {
+			sprintf(logtarget->pt_->buffer(),"e -t %11.9f "
+					"-Qid %d -Qel %d -Initiator %d -Proto %d -Nl AGT GBC Search START"
+					,NOW,query_id,query_elem,gbchdr->source_,proto);
+			logtarget->pt_->dump();
+			}
+			
+	    //Send header to  terminal
+		if (show) {showheader('i',pkt);};
+	}
+	else {
+			printf("QueryID Error: Start an Previous Query\n");
+			exit(1);
+		}
 }
 
-
-void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource, double delay, double jitter) {
+void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource) {
 	double waittime;
 	Packet* pkt=createGbcPkt(size);
 	hdr_gbc* gbchdr=hdr_gbc::access(pkt);
@@ -155,27 +167,17 @@ void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int 
     gbchdr->proto_=proto;
     gbchdr->noderesource_=noderesource;
     
-    
     //talvez mudar para dentro do expire
     //Node data memory
 	sentMsgs_++;
-    queries_[cqueries_].query_initiator=false;
-    queries_[cqueries_].cancel_initiator=true;
-	queries_[cqueries_].query_id=query_id;
-	queries_[cqueries_].relay_search=false;
-	queries_[cqueries_].relay_cancel=true;
-	queries_[cqueries_].relay_answer=false;
-	cqueries_++;
-	
-    gbchdr->initial_delay_=delay; //FIX delay to answer
-    gbchdr->jitter_=jitter;
+    //updateNode(gbchdr->query_id_,3);
     
 	gbchdr->timesent_=NOW;       // time at the sender of the packet
 	//gbchdr->nHops_=1;            // number of hops already traveled
-
 	
 	//Compute added delay for the fist cancellation transmission
-	waittime=calcDelayHop(1,gbchdr->nHops_,gbchdr->initial_delay_,gbchdr->jitter_,1);
+	waittime=calcDelayHop(1,gbchdr->nHops_,1);
+	
 	
 	insertInTQueue(waittime,pkt);   //send(pkt,0);
 
@@ -203,32 +205,33 @@ void GbcAgent::recv(Packet* pkt,Handler*) {
 	}
 }
 
+double GbcAgent::calcDelayHop(int proto, double hopcount, int M) {
+	double fix_delay_min=0.001;
+	//double fix_delay_max;
 
 
-double GbcAgent::calcDelayHop(int proto, double hopcount, double initial_delay, double jitter, int M) {
-	fix_delay_min=0.001;
-
-	double tmp = rng.uniform(fix_delay_min,jitter);
+	double tmp = rng.uniform(fix_delay_min,jitter_);
 
 	//printf("CalcDelayHop: initial_delay = %lf uniform = %f waittime = %f\n",initial_delay,tmp,2*(hopcount)*initial_delay+tmp);
 	switch(proto) {
-		case 1  : return initial_delay+tmp; break;//FLOOD Primeira mensagem de cancelamento
-		case 2  : return (2*(hopcount)*initial_delay)+tmp; break;//BERS and BCIR
-		case 3  : return (hopcount)*initial_delay+tmp; break;//BERS* and BCIR*
-		case 4  : return (((hopcount/2)+(3/2))*initial_delay)+tmp; break;//BCIR2
-		case 5  : return (((hopcount/4)+(7/4))*initial_delay)+tmp; break;//BCIR fast
-		case 6  : if (hopcount==1)  return initial_delay+tmp;
-				else return (hopcount-1)*initial_delay+tmp; break;//GBC
+		case 1  : return delay_+tmp; break;//FLOOD Primeira mensagem de cancelamento
+		case 2  : return (2*(hopcount)*delay_)+tmp; break;//BERS and BCIR
+		case 3  : return (hopcount)*delay_+tmp; break;//BERS* and BCIR*
+		case 4  : return (((hopcount/2)+(3/2))*delay_)+tmp; break;//BCIR2
+		case 5  : return (((hopcount/4)+(7/4))*delay_)+tmp; break;//BCIR fast
+		case 6  : if (hopcount==1)  return delay_+tmp;
+				else return (hopcount-1)*delay_+tmp; break;//GBC
 //		case 7  : return initial_delay+rng.uniform((jitter*.5),jitter); break;//BCIR - ACK and Cancellation DELAYS
 //		case 7  : return 2*((hopcount+1)*initial_delay)+tmp; break;		  //BCIR 2*Dellay no primeiro HOP
-		case 7  : return rng.uniform(fix_delay_min,jitter/10); break; // Speed Cancellation 
-		case 8  : return rng.uniform(jitter,2*jitter); break; // Prof. Hugo rml  Só poupa as mensagens de ACK.
-
+		case 7  : return rng.uniform(fix_delay_min,jitter_/10); break; // Speed Cancellation 
+		case 8  : return rng.uniform(jitter_,2*jitter_); break; // Prof. Hugo rml  Só poupa as mensagens de ACK.
+		case 9  : return 10*(delay_+tmp); break;//Delay Tolerant
 		default :
  			fprintf(stderr,"Error calcDelayGbc: %d\n",proto);
                 	exit(1);
 		}
 }
+
 
 //Only for one resource!!
 bool GbcAgent::hasresource(int find) {
@@ -251,7 +254,6 @@ if(logtarget) {
             ,opt,NOW,gbchdr->query_id_,gbchdr->query_elem_,addr(),gbchdr->msgtype_,gbchdr->proto_);
     logtarget->pt_->dump();
     }
-
 }
 
 
@@ -296,8 +298,13 @@ void GbcAgent::expire(Event*) {
 				logtarget->pt_->dump();
 			}
 			if (show) {showheader('z',rebroad);};
-			//statusNode();
+			
+			if (hdrnew->msgtype_==1) queries_[getpos(hdrnew->query_id_)].relay_search=true;
+			if (hdrnew->msgtype_==3) queries_[getpos(hdrnew->query_id_)].relay_cancel=true;
+			
 			send(rebroad,0);
+			
+			//statusNode();
 			
 			TQueue* tmp=tQueueHead_;
 			tQueueHead_=tQueueHead_->next_;
@@ -318,6 +325,7 @@ Packet* GbcAgent::createGbcPkt(int size) {
 	return pkt;
 }
 
+
 void GbcAgent::copyGbcHdr(hdr_gbc* src,hdr_gbc* dst) {
 
 	dst->source_=src->source_;
@@ -325,40 +333,13 @@ void GbcAgent::copyGbcHdr(hdr_gbc* src,hdr_gbc* dst) {
 	dst->size_=src->size_;
 	dst->timesent_=src->timesent_;
 	dst->nHops_=src->nHops_;
-	
 	//gbc:
 	dst->proto_=src->proto_;
 	dst->query_elem_=src->query_elem_;
 	dst->noderesource_=src->noderesource_;
 	dst->msgtype_=src->msgtype_;
-	dst->initial_delay_=src->initial_delay_;
-	dst->jitter_=src->jitter_;
 	dst->M_=src->M_;
 }
-
-bool GbcAgent::prevSearch(int query_id) {
-int i=0;
-bool search=false;
-
-for (i=0; i<cqueries_; i++)
-	if ((queries_[i].query_id == query_id) && queries_[i].relay_search)
-	    search=true;  
-
-return search;
-}
-
-bool GbcAgent::prevCancel(int query_id) {
-int i=0;
-bool cancel=false;
-
-for (i=0; i<cqueries_; i++)
-	if ((queries_[i].query_id == query_id) && queries_[i].relay_cancel)
-	    cancel=true;  
-
-return cancel;
-}
-
-
 
 void GbcAgent::statusNode() {
 int i=0;
@@ -369,12 +350,14 @@ for (i=0; i<cqueries_; i++) {
 	if (queries_[i].query_initiator) printf("Iniciador\n"); else
 			printf("Nao Iniciador\n");
 	if (queries_[i].cancel_initiator) printf("Iniciador do cancelamento \n"); else
-			printf("Nao Iniciador de cancelamento\n");		
+			printf("Nao Iniciador de cancelamento\n");	
+				
 	printf("query_id=%d\n",queries_[i].query_id);
 	if (queries_[i].relay_search) printf("Relay Search\n");
 	if (queries_[i].relay_cancel) printf("Relay Cancel\n");				
 	}	
 }
+
 
 /*
 void GbcAgent::printState(Trace* out) {
