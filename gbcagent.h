@@ -21,6 +21,7 @@
 
 // for gbc
 #define GBC_MAXQ 1000
+#define GBC_MAXR 50
 
 
 class GbcAgent : public Agent, TimerHandler {
@@ -60,14 +61,14 @@ private:
 	//double fix_delay_min;
 	//double fix_delay_max;
 	
-	int resource_;
+	int resources_[GBC_MAXR];
 	double delay_;
 	double jitter_;
 	bool hasresource(int resource);
 	double calcDelayHop(int proto, double hop, int M);
 
 	void searchPacket(int query_id, int size, int proto, int M, int resource);
-	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource);
+	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource, int nHops);
 	void answerPacket(int size, int proto, double delay, double jitter, int initiator, int resource);
 
 	void showheader(char opt, Packet* pkt);

@@ -27,7 +27,7 @@ void GbcAgent::recvgbc(Packet* pkt) {
 			queries_[cqueries_].pre_relay_cancel=true;
 			queries_[cqueries_].relay_answer=false;
 			cqueries_++;
-			cancelPacket(gbchdr->query_id_,gbchdr->query_elem_,gbchdr->source_,gbchdr->size_,gbchdr->proto_,addr());
+			cancelPacket(gbchdr->query_id_,gbchdr->query_elem_,gbchdr->source_,gbchdr->size_,gbchdr->proto_,addr(),gbchdr->nHops_);
 			
 			if(logtarget) {
 				sprintf(logtarget->pt_->buffer(),"e -t %11.9f "
@@ -88,7 +88,7 @@ void GbcAgent::recvgbc(Packet* pkt) {
     //Receve msg cancelamento esta escalonado para searchforward e ainda não transmitiu, então limpa a fila de eventos futuros.
     if (queries_[getpos(gbchdr->query_id_)].pre_relay_search && !queries_[getpos(gbchdr->query_id_)].relay_search)
     {
-		if(tQueueHead_) tQueueHead_=NULL;
+		if(tQueueHead_) tQueueHead_=NULL; //Como libertar a memória ?
 		Packet::free(pkt);
 	}
     else {
@@ -100,15 +100,8 @@ void GbcAgent::recvgbc(Packet* pkt) {
 				,NOW,gbchdr->query_id_,gbchdr->query_elem_,gbchdr->noderesource_,addr(),gbchdr->nHops_,gbchdr->proto_);
 				logtarget->pt_->dump();
 				}
-		
-			// Remove future searching messages
-			if(status()==TIMER_PENDING) cancel();
-			//if(bcirhdr->resource_!=addr() && !forward_ && status()==TIMER_PENDING) cancel();
-			Packet::free(pkt);
 		}
-		else
-		{
-			if(!prevCancel(gbchdr->query_id_) && prevSearch(gbchdr->query_id_)) {
+		if(!prevCancel(gbchdr->query_id_) && prevSearch(gbchdr->query_id_)) {
 				
 				//Compute added delay in the cancellation fase
 				double waittime=calcDelayHop(1,gbchdr->nHops_,1);
@@ -132,7 +125,6 @@ void GbcAgent::recvgbc(Packet* pkt) {
 				Packet::free(pkt);
 			 }
 			}
-		}
 		break;
 
 	default :

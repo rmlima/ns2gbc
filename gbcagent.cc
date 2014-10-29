@@ -8,7 +8,6 @@
 #define NOW Scheduler::instance().clock()
 
 
-
 GbcAgent::GbcAgent() : Agent(PT_GBC),
 		recvMsgs_(0),
 		sentMsgs_(0),
@@ -17,7 +16,6 @@ GbcAgent::GbcAgent() : Agent(PT_GBC),
 	logtarget=NULL;
 	show=TRUE;
 	cqueries_=0;
-	resource_=0;
 	delay_=0;
 	jitter_=0;
 }
@@ -26,7 +24,7 @@ int GbcAgent::command(int argc,const char*const* argv) {
 
 	char dummy;
 	//Default parameters
-	int size=1000, M=1, query_id, query_elem;
+	int size=1000, M=1, query_id, query_elem, res, i;
 
 
 	//SEARCH command : Used in traffile
@@ -59,11 +57,16 @@ int GbcAgent::command(int argc,const char*const* argv) {
 
 	// Set resources in nodes/Agents
 	if(!strcmp(argv[1],"resource") && argc==3) {
-		if(sscanf(argv[2],"%d%c",&resource_,&dummy)!=1) {
+		if(sscanf(argv[2],"%d%c",&res,&dummy)!=1) {
 			fprintf(stderr,"Wrong number of arguments in traffile."
 			"Format: gbc_(<node>) resource <resource_id>\n");
 			return (TCL_ERROR);
-		}
+		} else  
+		{  //insert head array resources - drop first
+		for (i=GBC_MAXR-1; i>0; i--)
+			resources_[i]==resources_[i-1];
+		resources_[0]=res;
+			}
 	return (TCL_OK);
 	}
 	
@@ -154,7 +157,7 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 		}
 }
 
-void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource) {
+void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource, int nHops) {
 	double waittime;
 	Packet* pkt=createGbcPkt(size);
 	hdr_gbc* gbchdr=hdr_gbc::access(pkt);
@@ -165,6 +168,7 @@ void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int 
 	gbchdr->source_=query_source;       // Originator of the query
     gbchdr->size_=size;          		// "Real" size of the packet (from a simulation point of view)
     gbchdr->proto_=proto;
+    gbchdr->nHops_=nHops;
     gbchdr->noderesource_=noderesource;
     
     //talvez mudar para dentro do expire
@@ -233,15 +237,16 @@ double GbcAgent::calcDelayHop(int proto, double hopcount, int M) {
 }
 
 
-//Only for one resource!!
+//Not efficient
 bool GbcAgent::hasresource(int find) {
-	 if (resource_ == find)
-	 {
-		return(TRUE);  /* it was found */
-	 } else
-  	{
-		return(FALSE);  /* if it was not found */
-        }
+int i=0;
+bool found=false;
+
+for (i=0; i<GBC_MAXR; i++)
+	if (resources_[i]==find)
+	    found=true;
+
+return found;	
 }
 
 
@@ -287,20 +292,36 @@ void GbcAgent::expire(Event*) {
 			Packet* rebroad=createGbcPkt(hdrold->size_);
 			hdr_gbc* hdrnew=hdr_gbc::access(rebroad);
 			copyGbcHdr(hdrold,hdrnew);
+						
+			if (show) {showheader('z',rebroad);};
 			
-			if(logtarget) {
+			if (hdrnew->msgtype_==1)
+			{
+				queries_[getpos(hdrnew->query_id_)].relay_search=true;
+				if(logtarget) {
 				sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
 					//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
-					"-Hs %d -Nl AGT -Ii %d -It searchagent expire "
+					"-Hs %d -Nl AGT -Ii %d -It searching expire "
 					,NOW,addr(),
 					//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
 					hdr_cmn::access(tQueueHead_->origpkt_)->uid());
 				logtarget->pt_->dump();
+				hdrnew->nHops_++; 	//Only count searching Hops
+				}
 			}
-			if (show) {showheader('z',rebroad);};
-			
-			if (hdrnew->msgtype_==1) queries_[getpos(hdrnew->query_id_)].relay_search=true;
-			if (hdrnew->msgtype_==3) queries_[getpos(hdrnew->query_id_)].relay_cancel=true;
+			if (hdrnew->msgtype_==3)
+			{
+				queries_[getpos(hdrnew->query_id_)].relay_cancel=true;
+				if(logtarget) {
+				sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
+					//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
+					"-Hs %d -Nl AGT -Ii %d -It cancellation expire "
+					,NOW,addr(),
+					//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
+					hdr_cmn::access(tQueueHead_->origpkt_)->uid());
+				logtarget->pt_->dump();
+				}
+			}
 			
 			send(rebroad,0);
 			
@@ -314,7 +335,6 @@ void GbcAgent::expire(Event*) {
 		}
 }
 
- 
 Packet* GbcAgent::createGbcPkt(int size) {
 	Packet* pkt=allocpkt();
 
