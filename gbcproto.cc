@@ -27,7 +27,7 @@ void GbcAgent::recvgbc(Packet* pkt) {
 			queries_[cqueries_].pre_relay_cancel=true;
 			queries_[cqueries_].relay_answer=false;
 			cqueries_++;
-			cancelPacket(gbchdr->query_id_,gbchdr->query_elem_,gbchdr->source_,gbchdr->size_,gbchdr->proto_,addr(),gbchdr->nHops_);
+			cancelPacket(gbchdr->query_id_,gbchdr->query_elem_,gbchdr->source_,gbchdr->size_,gbchdr->proto_,addr(),gbchdr->nHops_,gbchdr->timesent_);
 			
 			if(logtarget) {
 				sprintf(logtarget->pt_->buffer(),"e -t %11.9f "
@@ -92,14 +92,16 @@ void GbcAgent::recvgbc(Packet* pkt) {
 		Packet::free(pkt);
 	}
     else {
-	    //Initiator knows the resource location
-		if(addr()==gbchdr->source_) {
-			if(logtarget) {
+	    //Initiator knows the resource location - Only first discovery is logged
+		if(addr()==gbchdr->source_ && !queries_[getpos(gbchdr->query_id_)].resource_found) {
+			
+			if(logtarget ) {
 				sprintf(logtarget->pt_->buffer(),"e -t %11.9f "
-				"-QryID %d -QryElem %d -NodeRes %d -Hs %d -Hops %d -Proto %d -Nl AGT GBC Resource at Initiator"
-				,NOW,gbchdr->query_id_,gbchdr->query_elem_,gbchdr->noderesource_,addr(),gbchdr->nHops_,gbchdr->proto_);
+				"-Qid %d -Qelem %d -NodeRes %d -Hs %d -Hops %d -Proto %d -sent %11.9f -cancel %11.9f -Nl AGT GBC Resource at Initiator"
+				,NOW,gbchdr->query_id_,gbchdr->query_elem_,gbchdr->noderesource_,addr(),gbchdr->nHops_,gbchdr->proto_,gbchdr->timesent_,gbchdr->timesentCancel_);
 				logtarget->pt_->dump();
 				}
+			queries_[getpos(gbchdr->query_id_)].resource_found=true;
 		}
 		if(!prevCancel(gbchdr->query_id_) && prevSearch(gbchdr->query_id_)) {
 				

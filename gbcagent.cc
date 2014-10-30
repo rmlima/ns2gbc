@@ -7,17 +7,14 @@
 #define MAX(x,y) (x > y ? x : y)
 #define NOW Scheduler::instance().clock()
 
-
 GbcAgent::GbcAgent() : Agent(PT_GBC),
 		recvMsgs_(0),
 		sentMsgs_(0),
-		uid_(0) {
+		cqueries_(0),
+		delay_(0) {
 	tQueueHead_=NULL;
-	logtarget=NULL;
+	logtarget=NULL; 
 	show=TRUE;
-	cqueries_=0;
-	delay_=0;
-	jitter_=0;
 }
 
 int GbcAgent::command(int argc,const char*const* argv) {
@@ -64,7 +61,7 @@ int GbcAgent::command(int argc,const char*const* argv) {
 		} else  
 		{  //insert head array resources - drop first
 		for (i=GBC_MAXR-1; i>0; i--)
-			resources_[i]==resources_[i-1];
+			resources_[i]=resources_[i-1];
 		resources_[0]=res;
 			}
 	return (TCL_OK);
@@ -134,6 +131,7 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 		queries_[cqueries_].query_id=query_id;
 		queries_[cqueries_].relay_cancel=false;
 		queries_[cqueries_].relay_answer=false;
+		queries_[cqueries_].resource_found=false;
 		cqueries_++;
 		send(pkt,0);
 		
@@ -157,7 +155,7 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 		}
 }
 
-void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource, int nHops) {
+void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int noderesource, int nHops, double time) {
 	double waittime;
 	Packet* pkt=createGbcPkt(size);
 	hdr_gbc* gbchdr=hdr_gbc::access(pkt);
@@ -170,14 +168,10 @@ void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int 
     gbchdr->proto_=proto;
     gbchdr->nHops_=nHops;
     gbchdr->noderesource_=noderesource;
-    
-    //talvez mudar para dentro do expire
-    //Node data memory
+	//Node data memory    
 	sentMsgs_++;
-    //updateNode(gbchdr->query_id_,3);
-    
-	gbchdr->timesent_=NOW;       // time at the sender of the packet
-	//gbchdr->nHops_=1;            // number of hops already traveled
+	gbchdr->timesent_=time;
+	gbchdr->timesentCancel_=NOW;       // time at the sender of the packet
 	
 	//Compute added delay for the fist cancellation transmission
 	waittime=calcDelayHop(1,gbchdr->nHops_,1);
@@ -260,7 +254,6 @@ if(logtarget) {
     logtarget->pt_->dump();
     }
 }
-
 
 void GbcAgent::insertInTQueue(double time,Packet* pkt) {
 	TQueue* newmsg=new TQueue(time,pkt);
@@ -352,6 +345,7 @@ void GbcAgent::copyGbcHdr(hdr_gbc* src,hdr_gbc* dst) {
 	dst->query_id_=src->query_id_;
 	dst->size_=src->size_;
 	dst->timesent_=src->timesent_;
+	dst->timesentCancel_=src->timesentCancel_;
 	dst->nHops_=src->nHops_;
 	//gbc:
 	dst->proto_=src->proto_;

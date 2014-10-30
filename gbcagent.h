@@ -39,7 +39,7 @@ private:
 	// Messages sent
 	unsigned      int sentMsgs_;
 
-	int uid_; //Para remover não estou a usar
+	//int uid_; //Para remover não estou a usar
 
 	struct QStatus {
 		bool  query_initiator;
@@ -50,35 +50,33 @@ private:
 		bool pre_relay_search;
 		bool pre_relay_cancel;
 		bool relay_answer;
+		bool resource_found;
 	};
 	
 	QStatus queries_[GBC_MAXQ];
 	int cqueries_;
-
-	// BCIR - LOG
-	bool show;
-	// BCIR
-	//double fix_delay_min;
-	//double fix_delay_max;
 	
 	int resources_[GBC_MAXR];
 	double delay_;
 	double jitter_;
+	
+	//LOG
+	bool show;
+	void statusNode();
+	void showheader(char opt, Packet* pkt);
+		
 	bool hasresource(int resource);
 	double calcDelayHop(int proto, double hop, int M);
-
-	void searchPacket(int query_id, int size, int proto, int M, int resource);
-	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource, int nHops);
-	void answerPacket(int size, int proto, double delay, double jitter, int initiator, int resource);
-
-	void showheader(char opt, Packet* pkt);
-
-	void recvgbc(Packet* pkt);
 	
 	int getpos(int query_id);
 	bool prevSearch(int query_id);
 	bool prevCancel(int query_id);
-	void statusNode();
+
+	void searchPacket(int query_id, int size, int proto, int M, int resource);
+	void cancelPacket(int query_id, int query_elem, int query_source, int size, int proto, int resource, int nHops, double time);
+	void answerPacket(int size, int proto, double delay, double jitter, int initiator, int resource);
+
+	void recvgbc(Packet* pkt);
 
 	// Message waiting queue
 	struct TQueue {

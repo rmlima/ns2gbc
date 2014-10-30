@@ -18,6 +18,7 @@ struct hdr_gbc {
 	int			query_id_;    // Unique ID (at the originator)
 	int			size_;        // "Real" size of the packet (from a simulation point of view)
 	double		timesent_;    // time at the sender of the packet
+	double		timesentCancel_;    // time at the initiator of cancellation
 	int			nHops_;       // number of hops already traveled
 	int			proto_;				// 1 - FLOOD , 2 - BERS , 3 - BCIR
 	int			query_elem_;		//Resource query
