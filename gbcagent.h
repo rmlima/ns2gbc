@@ -10,7 +10,7 @@
 #include <cmu-trace.h>
 
 #include "hdr_gbc.h"
-
+#include <mhash.h>
 
 // for ns-2
 #define GBC_PORT 1234
@@ -23,6 +23,10 @@
 #define GBC_MAXQ 1000
 #define GBC_MAXR 50
 
+//BLOOM
+#define KEYSIZE 16 	//Também é o tamanho máximo para o K
+#define BLOOM_M 256		//Tamanho do bloom filter
+#define BLOOM_K 4
 
 class GbcAgent : public Agent, TimerHandler {
 public:
@@ -100,11 +104,26 @@ private:
 
 
 	// Packet utils
-
 	Packet* createGbcPkt(int size);
 	void copyGbcHdr(hdr_gbc* src,hdr_gbc* dst);
 
 
+	//Gradient stuff
+	int md5(char *recurso, unsigned char hash[KEYSIZE]);
+	int mostra_md5(char *recurso, unsigned char chave[KEYSIZE]);
+	void mostra_bloom(float *bloom);
+	void insertBloom(char *elem,float p);
+	float contem(char *elem);
+	void bloomMerge(float att);
+	float bloomSearch(char *elem,float *bloom);
+	void bloomcpy(float *src, float *dst);
+	float bloomRes[BLOOM_M];  //Filtro Recursos Próprios
+	float bloomRcv[BLOOM_M];  //Gradiente recebido
+	float bloomSnt[BLOOM_M]; //Adicao da informação própria ao gradiente existente
+	float p,att;
+	float min(float i, float j);
+	void log_bloom();
+	void log_gradient(Packet* pkt);
 
 	// State output
 	Trace* logtarget;

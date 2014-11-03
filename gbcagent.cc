@@ -2,10 +2,12 @@
 
 #include "gbcagent.h"
 #include "gbcproto.cc"
-#include <mhash.h>
+#include "gbcbloom.cc"
 
 #define MAX(x,y) (x > y ? x : y)
+#define MIN(x,y) (x < y ? x : y)
 #define NOW Scheduler::instance().clock()
+
 
 GbcAgent::GbcAgent() : Agent(PT_GBC),
 		recvMsgs_(0),
@@ -17,9 +19,11 @@ GbcAgent::GbcAgent() : Agent(PT_GBC),
 	show=TRUE;
 }
 
+
 int GbcAgent::command(int argc,const char*const* argv) {
 
 	char dummy;
+	char buffer[20];
 	//Default parameters
 	int size=1000, M=1, query_id, query_elem, res, i;
 
@@ -63,6 +67,13 @@ int GbcAgent::command(int argc,const char*const* argv) {
 		for (i=GBC_MAXR-1; i>0; i--)
 			resources_[i]=resources_[i-1];
 		resources_[0]=res;
+		//strcpy(buffer, "resource");
+		//strcat(buffer, buffer2);
+		sprintf(buffer, "%d",res);
+		//printf("\n***** %s *******\n",buffer);
+		insertBloom(buffer,1);
+		//mostra_bloom(bloomRes);
+		log_bloom();
 			}
 	return (TCL_OK);
 	}
@@ -123,7 +134,7 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 	printf("searchPacket: Start - Qid:%d Node:%d Qele:%d "
 				"Proto:%d Size:%d Initial_delay:%lf M:%d"
 				" \n",query_id,gbchdr->source_,query_elem,proto,size,delay_,M);
-			
+		
 	if (getpos(gbchdr->query_id_)==-1) {
 		queries_[cqueries_].query_initiator=true;
 		queries_[cqueries_].relay_search=true;
@@ -133,8 +144,11 @@ void GbcAgent::searchPacket(int query_id, int size, int proto,
 		queries_[cqueries_].relay_answer=false;
 		queries_[cqueries_].resource_found=false;
 		cqueries_++;
-		send(pkt,0);
 		
+		bloomcpy(bloomSnt,gbchdr->gradient_);
+
+		send(pkt,0);
+	
 		statusNode();
 		//Node data memory
 		sentMsgs_++;
@@ -186,6 +200,9 @@ void GbcAgent::cancelPacket(int query_id, int query_elem, int query_source, int 
 
 void GbcAgent::recv(Packet* pkt,Handler*) {
         hdr_gbc* gbchdr=hdr_gbc::access(pkt);
+
+bloomcpy(gbchdr->gradient_,bloomRcv);
+bloomMerge(0.5);
 
 //Select forward protocol - Now is only available GBC
 	switch( gbchdr->proto_ ) {
@@ -292,33 +309,34 @@ void GbcAgent::expire(Event*) {
 			{
 				queries_[getpos(hdrnew->query_id_)].relay_search=true;
 				if(logtarget) {
-				sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
-					//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
-					"-Hs %d -Nl AGT -Ii %d -It searching expire "
-					,NOW,addr(),
-					//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
-					hdr_cmn::access(tQueueHead_->origpkt_)->uid());
-				logtarget->pt_->dump();
-				hdrnew->nHops_++; 	//Only count searching Hops
+					sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
+						//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
+						"-Hs %d -Nl AGT -Ii %d -It searching expire "
+						,NOW,addr(),
+						//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
+						hdr_cmn::access(tQueueHead_->origpkt_)->uid());
+					logtarget->pt_->dump();
+					hdrnew->nHops_++; 	//Only count searching Hops
 				}
+				bloomcpy(bloomSnt,hdrnew->gradient_);
+				log_gradient(rebroad);
 			}
 			if (hdrnew->msgtype_==3)
 			{
 				queries_[getpos(hdrnew->query_id_)].relay_cancel=true;
 				if(logtarget) {
-				sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
-					//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
-					"-Hs %d -Nl AGT -Ii %d -It cancellation expire "
-					,NOW,addr(),
-					//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
-					hdr_cmn::access(tQueueHead_->origpkt_)->uid());
-				logtarget->pt_->dump();
+					sprintf(logtarget->pt_->buffer(),"f -t %11.9f "
+						//"-Qid %d -Hs %d -Nl AGT -Ii %d -It searchagent "
+						"-Hs %d -Nl AGT -Ii %d -It cancellation expire "
+						,NOW,addr(),
+						//hdr_cmn::access(tQueueHead_->origpkt_)->query_id_,
+						hdr_cmn::access(tQueueHead_->origpkt_)->uid());
+					logtarget->pt_->dump();
 				}
 			}
-			
-			send(rebroad,0);
-			
 			//statusNode();
+
+			send(rebroad,0);
 			
 			TQueue* tmp=tQueueHead_;
 			tQueueHead_=tQueueHead_->next_;
@@ -327,6 +345,7 @@ void GbcAgent::expire(Event*) {
 			if(tQueueHead_) resched(tQueueHead_->expires_);
 		}
 }
+
 
 Packet* GbcAgent::createGbcPkt(int size) {
 	Packet* pkt=allocpkt();
@@ -353,6 +372,7 @@ void GbcAgent::copyGbcHdr(hdr_gbc* src,hdr_gbc* dst) {
 	dst->noderesource_=src->noderesource_;
 	dst->msgtype_=src->msgtype_;
 	dst->M_=src->M_;
+	bloomcpy(src->gradient_, dst->gradient_);
 }
 
 void GbcAgent::statusNode() {

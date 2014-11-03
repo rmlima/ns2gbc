@@ -3,6 +3,7 @@
 #ifndef _HDR_GBC_H
 #define _HDR_GBC_H
 
+#define BLOOM_M 256
 
 	// ns-2 stuff
 struct hdr_gbc {
@@ -25,6 +26,7 @@ struct hdr_gbc {
 	int			noderesource_;  	//Node where resource was found
 	int			msgtype_; 			// 1 - Searching , 2 - Answer , 3 - Cancel
 	int			M_;
+	float		gradient_[BLOOM_M];
 };
 
 // Alterar em:

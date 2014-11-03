@@ -7,6 +7,7 @@ void GbcAgent::recvgbc(Packet* pkt) {
 	hdr_gbc* gbchdr=hdr_gbc::access(pkt); //GBC header
 	hdr_cmn* cmnhdr=hdr_cmn::access(pkt); //Global header
 	
+	char buffer[20];
 	
     recvMsgs_++; //Node received messages
     
@@ -59,6 +60,8 @@ void GbcAgent::recvgbc(Packet* pkt) {
 	
 				//Compute added delay in the searching fase
 				double waittime=calcDelayHop(9,gbchdr->nHops_,1);
+				sprintf(buffer, "%d",gbchdr->query_elem_);
+				waittime=waittime*(1-contem(buffer));
 	
 				if(logtarget) {
 					sprintf(logtarget->pt_->buffer(),"t -t %11.9f "
